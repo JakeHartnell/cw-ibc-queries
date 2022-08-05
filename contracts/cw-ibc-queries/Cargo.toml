@@ -1,7 +1,7 @@
 [package]
-name = "simple-ica-host"
+name = "cw-ibc-queries"
 version = "0.1.0"
-authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>", "Jake Hartnell <jakehartnell@users.noreply.github.com>"]
 edition = "2021"
 publish = false
 license = "Apache-2.0"
@@ -28,7 +28,7 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-simple-ica = { path = "../../packages/simple-ica"}
+cw-ibc-query = { path = "../../packages/cw-ibc-query"}
 cosmwasm-std = { version = "1.0.0", features = ["iterator", "ibc3"] }
 cw-storage-plus = { version = "0.13.4" }
 cw-utils = { version = "0.13.4" }

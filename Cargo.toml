@@ -1,11 +1,11 @@
 [workspace]
 members = ["packages/*", "contracts/*"]
 
-[profile.release.package.simple-ica-controller]
+[profile.release.package.cw-ibc-queries]
 codegen-units = 1
 incremental = false
 
-[profile.release.package.simple-ica-host]
+[profile.release.package.cw-ibc-query]
 codegen-units = 1
 incremental = false
 

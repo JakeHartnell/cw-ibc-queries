@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    from_slice, to_binary, Binary, Coin, CosmosMsg, IbcPacketAckMsg, StdResult, WasmMsg, WasmQuery,
+    from_slice, to_binary, Binary, CosmosMsg, Empty, IbcPacketAckMsg, QueryRequest, StdResult,
+    WasmMsg,
 };
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -9,16 +10,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PacketMsg {
-    Dispatch {
-        msgs: Vec<CosmosMsg>,
-        callback: Option<String>,
-    },
     IbcQuery {
-        msgs: Vec<WasmQuery>,
+        msgs: Vec<QueryRequest<Empty>>,
         callback: Option<String>,
     },
-    WhoAmI {},
-    Balances {},
 }
 
 /// This is a generic ICS acknowledgement format.
@@ -105,27 +100,6 @@ enum ReceiverExecuteMsg {
 
 /// Return the data field for each message
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DispatchResponse {
-    pub results: Vec<Binary>,
-}
-
-/// Return the data field for each message
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct IbcQueryResponse {
     pub results: Vec<Binary>,
-}
-
-/// This is the success response we send on ack for PacketMsg::WhoAmI.
-/// Return the caller's account address on the remote chain
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WhoAmIResponse {
-    pub account: String,
-}
-
-/// This is the success response we send on ack for PacketMsg::Balance.
-/// Just acknowledge success or error
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct BalancesResponse {
-    pub account: String,
-    pub balances: Vec<Coin>,
 }

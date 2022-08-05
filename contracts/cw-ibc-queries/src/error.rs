@@ -3,7 +3,7 @@ use thiserror::Error;
 use cosmwasm_std::StdError;
 use cw_utils::ParseReplyError;
 
-use simple_ica::SimpleIcaError;
+use cw_ibc_query::SimpleIcaError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {

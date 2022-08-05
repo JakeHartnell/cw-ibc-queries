@@ -1,5 +1,6 @@
 [package]
-name = "simple-ica"
+name = "cw-ibc-query"
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>", "Jake Hartnell <jakehartnell@users.noreply.github.com>"]
 version = "0.1.0"
 edition = "2021"
 
