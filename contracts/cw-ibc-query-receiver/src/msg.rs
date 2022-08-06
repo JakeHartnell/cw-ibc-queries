@@ -1,4 +1,4 @@
-use cosmwasm_std::{Empty, QueryRequest};
+use cw_ibc_query::ReceiveIbcResponseMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,11 +9,12 @@ pub struct InstantiateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    IbcQuery {
-        channel_id: String,
-        // Queries to be executed
-        msgs: Vec<QueryRequest<Empty>>,
-        // Callback contract address that implements ReceiveIbcResponseMsg
-        callback: String,
-    },
+    ReceiveIbcResponse(ReceiveIbcResponseMsg),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    // Get latest query
+    LatestQueryResult { channel_id: String },
 }

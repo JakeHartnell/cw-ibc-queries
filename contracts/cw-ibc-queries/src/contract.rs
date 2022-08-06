@@ -1,12 +1,11 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Deps, DepsMut, Empty, Env, IbcMsg, MessageInfo, QueryRequest,
-    QueryResponse, Response, StdResult,
+    entry_point, to_binary, DepsMut, Empty, Env, IbcMsg, MessageInfo, QueryRequest, Response,
+    StdResult,
 };
 use cw_ibc_query::PacketMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{IbcQueryResultResponse, LATEST_QUERIES};
+use crate::msg::{ExecuteMsg, InstantiateMsg};
 
 // TODO: make configurable?
 /// packets live one hour
@@ -41,13 +40,16 @@ pub fn execute(
 }
 
 pub fn execute_ibc_query(
-    _deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     _info: MessageInfo,
     channel_id: String,
     msgs: Vec<QueryRequest<Empty>>,
-    callback: Option<String>,
+    callback: String,
 ) -> Result<Response, ContractError> {
+    // validate callback address
+    deps.api.addr_validate(&callback)?;
+
     // construct a packet to send
     let packet = PacketMsg::IbcQuery { msgs, callback };
     let msg = IbcMsg::SendPacket {
@@ -60,23 +62,6 @@ pub fn execute_ibc_query(
         .add_message(msg)
         .add_attribute("action", "handle_check_remote_balance");
     Ok(res)
-}
-
-#[entry_point]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<QueryResponse> {
-    match msg {
-        QueryMsg::LatestQueryResult { channel_id } => {
-            to_binary(&query_latest_ibc_query_result(deps, channel_id)?)
-        }
-    }
-}
-
-fn query_latest_ibc_query_result(
-    deps: Deps,
-    channel_id: String,
-) -> StdResult<IbcQueryResultResponse> {
-    let results = LATEST_QUERIES.load(deps.storage, &channel_id)?;
-    Ok(results.into())
 }
 
 #[cfg(test)]

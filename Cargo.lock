@@ -173,6 +173,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw-ibc-query-receiver"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-ibc-query",
+ "cw-storage-plus",
+ "cw-utils",
+ "cw1-whitelist",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "cw-storage-plus"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

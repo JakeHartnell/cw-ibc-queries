@@ -16,14 +16,15 @@ let osmosisIds: Record<string, number> = {};
 test.before(async (t) => {
   console.debug("Upload contracts to wasmd...");
   const wasmContracts = {
-    controller: "./internal/cw_ibc_queries.wasm",
+    querier: "./internal/cw_ibc_queries.wasm",
+    receiver: "./internal/cw_ibc_query_receiver.wasm",
   };
   const wasmSign = await setupWasmClient();
   wasmIds = await setupContracts(wasmSign, wasmContracts);
 
   console.debug("Upload contracts to osmosis...");
   const osmosisContracts = {
-    host: "./internal/cw_ibc_queries.wasm",
+    querier: "./internal/cw_ibc_queries.wasm",
   };
   const osmosisSign = await setupOsmosisClient();
   osmosisIds = await setupContracts(osmosisSign, osmosisContracts);
@@ -36,40 +37,41 @@ test.serial("set up channel with ibc-queries contract", async (t) => {
   const wasmClient = await setupWasmClient();
   const { contractAddress: wasmCont } = await wasmClient.sign.instantiate(
     wasmClient.senderAddress,
-    wasmIds.controller,
+    wasmIds.querier,
     {},
-    "simple controller",
+    "simple querier",
     "auto"
   );
   t.truthy(wasmCont);
-  const { ibcPortId: controllerPort } = await wasmClient.sign.getContract(wasmCont);
-  t.log(`Controller Port: ${controllerPort}`);
-  assert(controllerPort);
+  const { ibcPortId: wasmQuerierPort } = await wasmClient.sign.getContract(wasmCont);
+  t.log(`Querier Port: ${wasmQuerierPort}`);
+  assert(wasmQuerierPort);
 
-  // instantiate ica host on osmosis
+  // instantiate ica querier on osmosis
   const osmoClient = await setupOsmosisClient();
-  const { contractAddress: osmoHost } = await osmoClient.sign.instantiate(
+  const { contractAddress: osmoQuerier } = await osmoClient.sign.instantiate(
     osmoClient.senderAddress,
-    osmosisIds.host,
+    osmosisIds.querier,
     {},
-    "simple host",
+    "simple querier",
     "auto"
   );
-  t.truthy(osmoHost);
-  const { ibcPortId: hostPort } = await osmoClient.sign.getContract(osmoHost);
-  t.log(`Host Port: ${hostPort}`);
-  assert(hostPort);
+  t.truthy(osmoQuerier);
+  const { ibcPortId: osmoQuerierPort } = await osmoClient.sign.getContract(osmoQuerier);
+  t.log(`Querier Port: ${osmoQuerierPort}`);
+  assert(osmoQuerierPort);
 
   const [src, dest] = await setup(wasmd, osmosis);
   const link = await Link.createWithNewConnections(src, dest);
-  await link.createChannel("A", controllerPort, hostPort, Order.ORDER_UNORDERED, IbcVersion);
+  await link.createChannel("A", wasmQuerierPort, osmoQuerierPort, Order.ORDER_UNORDERED, IbcVersion);
 });
 
 interface SetupInfo {
   wasmClient: CosmWasmSigner;
   osmoClient: CosmWasmSigner;
-  wasmController: string;
-  osmoHost: string;
+  wasmQuerier: string;
+  osmoQuerier: string;
+  wasmQueryReceiver: string;
   link: Link;
   ics20: {
     wasm: string;
@@ -82,34 +84,50 @@ interface SetupInfo {
 }
 
 async function demoSetup(): Promise<SetupInfo> {
-  // instantiate ica controller on wasmd
+  // instantiate ica querier on wasmd
   const wasmClient = await setupWasmClient();
-  const { contractAddress: wasmController } = await wasmClient.sign.instantiate(
+  const { contractAddress: wasmQuerier } = await wasmClient.sign.instantiate(
     wasmClient.senderAddress,
-    wasmIds.controller,
+    wasmIds.querier,
     {},
     "IBC Queries contract",
     "auto"
   );
-  const { ibcPortId: controllerPort } = await wasmClient.sign.getContract(wasmController);
-  assert(controllerPort);
+  const { ibcPortId: wasmQuerierPort } = await wasmClient.sign.getContract(wasmQuerier);
+  assert(wasmQuerierPort);
 
-  // instantiate ica host on osmosis
+  // instantiate ibc query receiver on wasmd
+  const { contractAddress: wasmQueryReceiver } = await wasmClient.sign.instantiate(
+    wasmClient.senderAddress,
+    wasmIds.receiver,
+    {},
+    "IBC Query receiver contract",
+    "auto"
+  );
+  assert(wasmQueryReceiver);
+
+  // instantiate ica querier on osmosis
   const osmoClient = await setupOsmosisClient();
-  const { contractAddress: osmoHost } = await osmoClient.sign.instantiate(
+  const { contractAddress: osmoQuerier } = await osmoClient.sign.instantiate(
     osmoClient.senderAddress,
-    osmosisIds.host,
+    osmosisIds.querier,
     {},
     "IBC Queries contract",
     "auto"
   );
-  const { ibcPortId: hostPort } = await osmoClient.sign.getContract(osmoHost);
-  assert(hostPort);
+  const { ibcPortId: osmoQuerierPort } = await osmoClient.sign.getContract(osmoQuerier);
+  assert(osmoQuerierPort);
 
   // create a connection and channel for simple-ica
   const [src, dest] = await setup(wasmd, osmosis);
   const link = await Link.createWithNewConnections(src, dest);
-  const channelInfo = await link.createChannel("A", controllerPort, hostPort, Order.ORDER_UNORDERED, IbcVersion);
+  const channelInfo = await link.createChannel(
+    "A",
+    wasmQuerierPort,
+    osmoQuerierPort,
+    Order.ORDER_UNORDERED,
+    IbcVersion
+  );
   const channelIds = {
     wasm: channelInfo.src.channelId,
     osmo: channelInfo.src.channelId,
@@ -126,8 +144,9 @@ async function demoSetup(): Promise<SetupInfo> {
   return {
     wasmClient,
     osmoClient,
-    wasmController,
-    osmoHost,
+    wasmQuerier,
+    osmoQuerier,
+    wasmQueryReceiver,
     link,
     ics20,
     channelIds,
@@ -135,12 +154,12 @@ async function demoSetup(): Promise<SetupInfo> {
 }
 
 test.serial("query remote chain", async (t) => {
-  const { osmoClient, wasmClient, wasmController, link, channelIds } = await demoSetup();
+  const { osmoClient, wasmClient, wasmQuerier, link, channelIds, wasmQueryReceiver } = await demoSetup();
 
   // Use IBC queries to query info from the remote contract
   const ibcQuery = await wasmClient.sign.execute(
     wasmClient.senderAddress,
-    wasmController,
+    wasmQuerier,
     {
       ibc_query: {
         channel_id: channelIds.wasm,
@@ -153,6 +172,7 @@ test.serial("query remote chain", async (t) => {
             },
           },
         ],
+        callback: wasmQueryReceiver,
       },
     },
     "auto"
@@ -163,9 +183,8 @@ test.serial("query remote chain", async (t) => {
   const info = await link.relayAll();
   console.log(info);
   console.log(fromUtf8(info.acksFromB[0].acknowledgement));
-  // assertPacketsFromA(info1, 1, true);
 
-  const result = await wasmClient.sign.queryContractSmart(wasmController, {
+  const result = await wasmClient.sign.queryContractSmart(wasmQueryReceiver, {
     latest_query_result: {
       channel_id: channelIds.wasm,
     },
@@ -174,29 +193,4 @@ test.serial("query remote chain", async (t) => {
   console.log(result);
   console.log(fromUtf8(fromBase64(result.response.acknowledgement.data)));
   t.truthy(result);
-
-  // // Use IBC queries to query info from the remote contract
-  // const ibcQuery = await wasmClient.sign.execute(
-  //   wasmClient.senderAddress,
-  //   wasmController,
-  //   {
-  //     ibc_query: {
-  //       channel_id: channelIds.wasm,
-  //       msgs: [
-  //         {
-  //           wasm: {
-  //             smart: {
-  //               msg: toBase64(toUtf8(JSON.stringify({ latest_query_result: { channel_id: channelIds.osmo } }))),
-  //               contract_addr: osmoHost,
-  //             },
-  //           },
-  //         },
-  //       ],
-  //     },
-  //   },
-  //   "auto"
-  // );
-  // // relay this over
-  // const info = await link.relayAll();
-  // assertPacketsFromA(info, 1, true);
 });

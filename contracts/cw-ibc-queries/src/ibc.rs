@@ -5,12 +5,12 @@ use cosmwasm_std::{
     IbcPacketTimeoutMsg, IbcReceiveResponse, QueryRequest, StdResult, SystemResult, WasmMsg,
 };
 use cw_ibc_query::{
-    check_order, check_version, IbcQueryResponse, PacketMsg, ReceiveIbcResponseMsg, StdAck,
-    IBC_APP_VERSION,
+    check_order, check_version, IbcQueryResponse, PacketMsg, ReceiveIbcResponseMsg,
+    ReceiverExecuteMsg, StdAck, IBC_APP_VERSION,
 };
 
 use crate::error::ContractError;
-use crate::state::{IbcQueryResultResponse, LATEST_QUERIES, PENDING};
+use crate::state::PENDING;
 
 // TODO: make configurable?
 /// packets live one hour
@@ -114,13 +114,11 @@ pub fn ibc_packet_ack(
     env: Env,
     msg: IbcPacketAckMsg,
 ) -> Result<IbcBasicResponse, ContractError> {
-    // which local channel was this packet send from
-    let caller = msg.original_packet.src.channel_id.clone();
     // we need to parse the ack based on our request
     let original_packet: PacketMsg = from_slice(&msg.original_packet.data)?;
 
     match original_packet {
-        PacketMsg::IbcQuery { callback, .. } => acknowledge_query(deps, env, caller, callback, msg),
+        PacketMsg::IbcQuery { callback, .. } => acknowledge_query(deps, env, callback, msg),
     }
 }
 
@@ -134,36 +132,23 @@ pub fn ibc_packet_timeout(
 }
 
 fn acknowledge_query(
-    deps: DepsMut,
-    env: Env,
-    channel_id: String,
-    callback: Option<String>,
+    _deps: DepsMut,
+    _env: Env,
+    callback: String,
     msg: IbcPacketAckMsg,
 ) -> Result<IbcBasicResponse, ContractError> {
-    // store IBC response for later querying from the smart contract??
-    LATEST_QUERIES.save(
-        deps.storage,
-        &channel_id,
-        &IbcQueryResultResponse {
-            last_update_time: env.block.time,
-            response: msg.clone(),
-        },
-    )?;
-    match callback {
-        Some(callback) => {
-            // Send IBC packet ack message to another contract
-            let msg = WasmMsg::Execute {
-                contract_addr: callback.clone(),
-                msg: to_binary(&ReceiveIbcResponseMsg { msg })?,
-                funds: vec![],
-            };
-            Ok(IbcBasicResponse::new()
-                .add_attribute("action", "acknowledge_ibc_query")
-                .add_attribute("callback_address", callback)
-                .add_message(msg))
-        }
-        None => Ok(IbcBasicResponse::new().add_attribute("action", "acknowledge_ibc_query")),
-    }
+    // Send IBC packet ack message to another contract
+    let msg = WasmMsg::Execute {
+        contract_addr: callback.clone(),
+        msg: to_binary(&ReceiverExecuteMsg::ReceiveIbcResponse(
+            ReceiveIbcResponseMsg { msg },
+        ))?,
+        funds: vec![],
+    };
+    Ok(IbcBasicResponse::new()
+        .add_attribute("action", "acknowledge_ibc_query")
+        .add_attribute("callback_address", callback)
+        .add_message(msg))
 }
 
 #[cfg(test)]
@@ -199,7 +184,7 @@ mod tests {
 
         let ack = IbcAcknowledgement::new([]);
         let ibc_res = mock_ibc_packet_ack(CHANNEL, &InstantiateMsg {}, ack).unwrap();
-        let res = acknowledge_query(deps.as_mut(), env, CHANNEL.to_string(), None, ibc_res);
+        let res = acknowledge_query(deps.as_mut(), env, String::from("test"), ibc_res);
         assert!(res.is_ok());
     }
 }

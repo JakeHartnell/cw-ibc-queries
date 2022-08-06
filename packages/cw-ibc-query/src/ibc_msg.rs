@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 pub enum PacketMsg {
     IbcQuery {
         msgs: Vec<QueryRequest<Empty>>,
-        callback: Option<String>,
+        callback: String,
     },
 }
 
@@ -94,7 +94,7 @@ impl ReceiveIbcResponseMsg {
 /// The actual receiver should include this variant in the larger ExecuteMsg enum
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-enum ReceiverExecuteMsg {
+pub enum ReceiverExecuteMsg {
     ReceiveIbcResponse(ReceiveIbcResponseMsg),
 }
 
