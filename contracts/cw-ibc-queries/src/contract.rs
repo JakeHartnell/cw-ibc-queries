@@ -85,9 +85,8 @@ mod tests {
 
     use super::*;
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_ibc_channel_close_init, mock_ibc_channel_connect_ack,
-        mock_ibc_channel_open_init, mock_ibc_channel_open_try, mock_ibc_packet_recv, mock_info,
-        mock_wasmd_attr, MockApi, MockQuerier, MockStorage,
+        mock_dependencies, mock_env, mock_ibc_channel_connect_ack, mock_ibc_channel_open_init,
+        mock_ibc_channel_open_try, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::OwnedDeps;
     use cw_ibc_query::{APP_ORDER, BAD_APP_ORDER, IBC_APP_VERSION};
@@ -142,67 +141,4 @@ mod tests {
         let res = ibc_channel_connect(deps.as_mut(), mock_env(), handshake_connect).unwrap();
         assert_eq!(0, res.messages.len());
     }
-
-    //// TODO
-    // #[test]
-    // fn handle_ibc_query_packet() {
-    //     let mut deps = setup();
-
-    //     let channel_id = "channel-123";
-    //     let account = "acct-123";
-
-    // // receive a packet for an unregistered channel returns app-level error (not Result::Err)
-    // let msgs_to_dispatch = vec![BankMsg::Send {
-    //     to_address: "my-friend".into(),
-    //     amount: coins(123456789, "uatom"),
-    // }
-    // .into()];
-    // let ibc_msg = PacketMsg::Dispatch {
-    //     msgs: msgs_to_dispatch.clone(),
-    // };
-    // let msg = mock_ibc_packet_recv(channel_id, &ibc_msg).unwrap();
-    // // this returns an error
-    // ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap_err();
-
-    // // register the channel
-    // connect(deps.as_mut(), channel_id, account);
-
-    // // receive a packet for an unregistered channel returns app-level error (not Result::Err)
-    // let msg = mock_ibc_packet_recv(channel_id, &ibc_msg).unwrap();
-    // let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
-
-    // // assert app-level success
-    // let ack: StdAck = from_slice(&res.acknowledgement).unwrap();
-    // ack.unwrap();
-
-    // // and we dispatch the BankMsg via submessage
-    // assert_eq!(1, res.messages.len());
-    // assert_eq!(RECEIVE_DISPATCH_ID, res.messages[0].id);
-
-    // // parse the output, ensuring it matches
-    // if let CosmosMsg::Wasm(WasmMsg::Execute {
-    //     contract_addr,
-    //     msg,
-    //     funds,
-    // }) = &res.messages[0].msg
-    // {
-    //     assert_eq!(account, contract_addr.as_str());
-    //     assert_eq!(0, funds.len());
-    //     // parse the message - should callback with proper channel_id
-    //     let rmsg: cw1_whitelist::msg::ExecuteMsg = from_slice(msg).unwrap();
-    //     assert_eq!(
-    //         rmsg,
-    //         cw1_whitelist::msg::ExecuteMsg::Execute {
-    //             msgs: msgs_to_dispatch
-    //         }
-    //     );
-    // } else {
-    //     panic!("invalid return message: {:?}", res.messages[0]);
-    // }
-
-    // // invalid packet format on registered channel also returns error
-    // let bad_data = InstantiateMsg { cw1_code_id: 12345 };
-    // let msg = mock_ibc_packet_recv(channel_id, &bad_data).unwrap();
-    // ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap_err();
-    // }
 }

@@ -1,8 +1,8 @@
 use cosmwasm_std::{
-    entry_point, from_slice, to_binary, Deps, DepsMut, Empty, Env, Event, Ibc3ChannelOpenResponse,
-    IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg,
-    IbcChannelOpenResponse, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
-    IbcReceiveResponse, QueryRequest, StdResult, WasmMsg,
+    entry_point, from_slice, to_binary, Binary, Deps, DepsMut, Empty, Env, Event,
+    Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg,
+    IbcChannelOpenMsg, IbcChannelOpenResponse, IbcPacketAckMsg, IbcPacketReceiveMsg,
+    IbcPacketTimeoutMsg, IbcReceiveResponse, QueryRequest, StdResult, SystemResult, WasmMsg,
 };
 use cw_ibc_query::{
     check_order, check_version, IbcQueryResponse, PacketMsg, ReceiveIbcResponseMsg, StdAck,
@@ -87,15 +87,18 @@ pub fn ibc_packet_receive(
 }
 
 // Processes IBC query
-fn receive_query(
+pub fn receive_query(
     deps: Deps,
     msgs: Vec<QueryRequest<Empty>>,
 ) -> Result<IbcReceiveResponse, ContractError> {
-    let mut results = vec![];
+    let mut results: Vec<Binary> = vec![];
 
     for query in msgs {
-        let res = deps.querier.query(&query)?;
-        results.push(res);
+        let res = match deps.querier.raw_query(&to_binary(&query)?) {
+            SystemResult::Ok(res) => res,
+            SystemResult::Err(err) => cosmwasm_std::ContractResult::Err(err.to_string()),
+        };
+        results.push(to_binary(&res)?);
     }
     let response = IbcQueryResponse { results };
 
@@ -133,14 +136,14 @@ pub fn ibc_packet_timeout(
 fn acknowledge_query(
     deps: DepsMut,
     env: Env,
-    caller: String,
+    channel_id: String,
     callback: Option<String>,
     msg: IbcPacketAckMsg,
 ) -> Result<IbcBasicResponse, ContractError> {
     // store IBC response for later querying from the smart contract??
     LATEST_QUERIES.save(
         deps.storage,
-        &caller,
+        &channel_id,
         &IbcQueryResultResponse {
             last_update_time: env.block.time,
             response: msg.clone(),
@@ -160,5 +163,43 @@ fn acknowledge_query(
                 .add_message(msg))
         }
         None => Ok(IbcBasicResponse::new().add_attribute("action", "acknowledge_ibc_query")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_ibc_packet_ack},
+        BankQuery, IbcAcknowledgement,
+    };
+
+    use crate::msg::InstantiateMsg;
+
+    use super::*;
+
+    const CHANNEL: &str = "channel-42";
+
+    #[test]
+    fn try_receive_query() {
+        let deps = mock_dependencies();
+
+        let res = receive_query(
+            deps.as_ref(),
+            vec![QueryRequest::<Empty>::Bank(BankQuery::AllBalances {
+                address: String::from("test"),
+            })],
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn try_acknowledge_query() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+
+        let ack = IbcAcknowledgement::new([]);
+        let ibc_res = mock_ibc_packet_ack(CHANNEL, &InstantiateMsg {}, ack).unwrap();
+        let res = acknowledge_query(deps.as_mut(), env, CHANNEL.to_string(), None, ibc_res);
+        assert!(res.is_ok());
     }
 }
