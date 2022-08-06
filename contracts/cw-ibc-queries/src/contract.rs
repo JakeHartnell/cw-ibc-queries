@@ -30,6 +30,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    cw_utils::nonpayable(&info)?;
     match msg {
         ExecuteMsg::IbcQuery {
             channel_id,

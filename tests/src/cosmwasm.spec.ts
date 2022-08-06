@@ -1,5 +1,6 @@
 import { CosmWasmSigner, Link, testutils } from "@confio/relayer";
-import { toBase64, toUtf8 } from "@cosmjs/encoding";
+// import { toBase64, toUtf8 } from "@cosmjs/encoding";
+import { fromBase64, fromUtf8 } from "@cosmjs/encoding";
 import { assert } from "@cosmjs/utils";
 import test from "ava";
 import { Order } from "cosmjs-types/ibc/core/channel/v1/channel";
@@ -7,7 +8,7 @@ import { Order } from "cosmjs-types/ibc/core/channel/v1/channel";
 const { osmosis: oldOsmo, setup, wasmd } = testutils;
 const osmosis = { ...oldOsmo, minFee: "0.025uosmo" };
 
-import { assertPacketsFromA, IbcVersion, setupContracts, setupOsmosisClient, setupWasmClient } from "./utils";
+import { IbcVersion, setupContracts, setupOsmosisClient, setupWasmClient } from "./utils";
 
 let wasmIds: Record<string, number> = {};
 let osmosisIds: Record<string, number> = {};
@@ -74,6 +75,10 @@ interface SetupInfo {
     wasm: string;
     osmo: string;
   };
+  channelIds: {
+    wasm: string;
+    osmo: string;
+  };
 }
 
 async function demoSetup(): Promise<SetupInfo> {
@@ -104,7 +109,11 @@ async function demoSetup(): Promise<SetupInfo> {
   // create a connection and channel for simple-ica
   const [src, dest] = await setup(wasmd, osmosis);
   const link = await Link.createWithNewConnections(src, dest);
-  await link.createChannel("A", controllerPort, hostPort, Order.ORDER_UNORDERED, IbcVersion);
+  const channelInfo = await link.createChannel("A", controllerPort, hostPort, Order.ORDER_UNORDERED, IbcVersion);
+  const channelIds = {
+    wasm: channelInfo.src.channelId,
+    osmo: channelInfo.src.channelId,
+  };
 
   // also create a ics20 channel on this connection
   const ics20Info = await link.createChannel("A", wasmd.ics20Port, osmosis.ics20Port, Order.ORDER_UNORDERED, "ics20-1");
@@ -112,8 +121,7 @@ async function demoSetup(): Promise<SetupInfo> {
     wasm: ics20Info.src.channelId,
     osmo: ics20Info.dest.channelId,
   };
-
-  console.log(ics20);
+  console.log(ics20Info);
 
   return {
     wasmClient,
@@ -122,11 +130,12 @@ async function demoSetup(): Promise<SetupInfo> {
     osmoHost,
     link,
     ics20,
+    channelIds,
   };
 }
 
-test.serial("query remote chain", async () => {
-  const { wasmClient, wasmController, osmoHost, ics20, link } = await demoSetup();
+test.serial("query remote chain", async (t) => {
+  const { osmoClient, wasmClient, wasmController, link, channelIds } = await demoSetup();
 
   // Use IBC queries to query info from the remote contract
   const ibcQuery = await wasmClient.sign.execute(
@@ -134,11 +143,13 @@ test.serial("query remote chain", async () => {
     wasmController,
     {
       ibc_query: {
-        channel_id: ics20.osmo,
+        channel_id: channelIds.wasm,
         msgs: [
           {
-            wasm: {
-              smart: { msg: toBase64(toUtf8(JSON.stringify({ latest_query_result: {} }))), contract_addr: osmoHost },
+            bank: {
+              all_balances: {
+                address: osmoClient.senderAddress,
+              },
             },
           },
         ],
@@ -150,5 +161,42 @@ test.serial("query remote chain", async () => {
 
   // relay this over
   const info = await link.relayAll();
-  assertPacketsFromA(info, 1, true);
+  console.log(info);
+  console.log(fromUtf8(info.acksFromB[0].acknowledgement));
+  // assertPacketsFromA(info1, 1, true);
+
+  const result = await wasmClient.sign.queryContractSmart(wasmController, {
+    latest_query_result: {
+      channel_id: channelIds.wasm,
+    },
+  });
+
+  console.log(result);
+  console.log(fromUtf8(fromBase64(result.response.acknowledgement.data)));
+  t.truthy(result);
+
+  // // Use IBC queries to query info from the remote contract
+  // const ibcQuery = await wasmClient.sign.execute(
+  //   wasmClient.senderAddress,
+  //   wasmController,
+  //   {
+  //     ibc_query: {
+  //       channel_id: channelIds.wasm,
+  //       msgs: [
+  //         {
+  //           wasm: {
+  //             smart: {
+  //               msg: toBase64(toUtf8(JSON.stringify({ latest_query_result: { channel_id: channelIds.osmo } }))),
+  //               contract_addr: osmoHost,
+  //             },
+  //           },
+  //         },
+  //       ],
+  //     },
+  //   },
+  //   "auto"
+  // );
+  // // relay this over
+  // const info = await link.relayAll();
+  // assertPacketsFromA(info, 1, true);
 });

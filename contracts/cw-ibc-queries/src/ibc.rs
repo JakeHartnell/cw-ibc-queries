@@ -75,9 +75,6 @@ pub fn ibc_channel_close(
 }
 
 #[entry_point]
-/// we look for a the proper reflect contract to relay to and send the message
-/// We cannot return any meaningful response value as we do not know the response value
-/// of execution. We just return ok if we dispatched, error if we failed to dispatch
 pub fn ibc_packet_receive(
     deps: DepsMut,
     _env: Env,
@@ -125,7 +122,6 @@ pub fn ibc_packet_ack(
 }
 
 #[entry_point]
-/// never should be called as we do not send packets
 pub fn ibc_packet_timeout(
     _deps: DepsMut,
     _env: Env,
