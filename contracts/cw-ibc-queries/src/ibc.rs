@@ -12,10 +12,6 @@ use cw_ibc_query::{
 use crate::error::ContractError;
 use crate::state::PENDING;
 
-// TODO: make configurable?
-/// packets live one hour
-pub const PACKET_LIFETIME: u64 = 60 * 60;
-
 #[entry_point]
 /// enforces ordering and versioing constraints
 pub fn ibc_channel_open(
@@ -183,7 +179,14 @@ mod tests {
         let env = mock_env();
 
         let ack = IbcAcknowledgement::new([]);
-        let ibc_res = mock_ibc_packet_ack(CHANNEL, &InstantiateMsg {}, ack).unwrap();
+        let ibc_res = mock_ibc_packet_ack(
+            CHANNEL,
+            &InstantiateMsg {
+                packet_lifetime: 60u64,
+            },
+            ack,
+        )
+        .unwrap();
         let res = acknowledge_query(deps.as_mut(), env, String::from("test"), ibc_res);
         assert!(res.is_ok());
     }
