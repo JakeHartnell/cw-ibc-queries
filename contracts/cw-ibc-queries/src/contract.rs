@@ -2,23 +2,21 @@ use cosmwasm_std::{
     entry_point, to_binary, DepsMut, Empty, Env, IbcMsg, MessageInfo, QueryRequest, Response,
     StdResult,
 };
+
 use cw_ibc_query::PacketMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
-
-// TODO: make configurable?
-/// packets live one hour
-pub const PACKET_LIFETIME: u64 = 60 * 60;
+use crate::state::PACKET_LIFETIME;
 
 #[entry_point]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    // Do nothing for now
+    PACKET_LIFETIME.save(deps.storage, &msg.packet_lifetime)?;
     Ok(Response::new())
 }
 
@@ -55,7 +53,11 @@ pub fn execute_ibc_query(
     let msg = IbcMsg::SendPacket {
         channel_id,
         data: to_binary(&packet)?,
-        timeout: env.block.time.plus_seconds(PACKET_LIFETIME).into(),
+        timeout: env
+            .block
+            .time
+            .plus_seconds(PACKET_LIFETIME.load(deps.storage)?)
+            .into(),
     };
 
     let res = Response::new()
@@ -66,21 +68,25 @@ pub fn execute_ibc_query(
 
 #[cfg(test)]
 mod tests {
-    use crate::ibc::{ibc_channel_connect, ibc_channel_open};
-
-    use super::*;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_ibc_channel_connect_ack, mock_ibc_channel_open_init,
         mock_ibc_channel_open_try, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::OwnedDeps;
+
     use cw_ibc_query::{APP_ORDER, BAD_APP_ORDER, IBC_APP_VERSION};
+
+    use crate::ibc::{ibc_channel_connect, ibc_channel_open};
+
+    use super::*;
 
     const CREATOR: &str = "creator";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies();
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            packet_lifetime: 60u64,
+        };
         let info = mock_info(CREATOR, &[]);
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -91,7 +97,9 @@ mod tests {
     fn instantiate_works() {
         let mut deps = mock_dependencies();
 
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            packet_lifetime: 60u64,
+        };
         let info = mock_info("creator", &[]);
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len())
